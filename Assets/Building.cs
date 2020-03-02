@@ -5,19 +5,47 @@ using System.Linq;
 using UnityEngine;
 
 public class Building {
+    private CityConstants constants;
 
     List<Road> landBorders;
     List<Road> inwardJuttingEdges;
     List<Road> foundationEdges;
     List<Vector2> foundationVertices;
 
-    float roadSpacing = 1.5f;
+    float roadSpacing = 2.0f;
 
     float buildingHeight = 2.5f;
 
-    public Building(List<Road> landBorders) {
+    public Building(List<Road> landBorders, CityConstants constants) {
+        this.constants = constants;
         this.landBorders = landBorders;
+
+        Road referenceRoad = landBorders.First();
+        if (referenceRoad != null) {
+            buildingHeight += GetPerlinValue(referenceRoad.source);
+        }
+
         GenerateFoundations();
+    }
+
+    public float GetPerlinValue(Vector2 input) {
+        Vector2 populationCoord = input / 50 + constants.GetPopShift();
+        Vector2 businessCoord = input / 50 + constants.GetBusShift();
+
+        float populationNoiseValue = Mathf.PerlinNoise(populationCoord.x, populationCoord.y);
+        float businessNoiseValue = Mathf.PerlinNoise(businessCoord.x, businessCoord.y);
+
+        float noiseValue = (populationNoiseValue + businessNoiseValue + constants.GetNormalisedDistanceToCentre(input)) / 3.0f;
+
+        if (noiseValue == 0) {
+            Debug.Log("PERLIN NOISE 0 GENERATED");
+            return 0;
+        }
+
+        int range = 100;
+        int power = 5;
+
+        return range * Mathf.Pow(noiseValue, power);
     }
 
     public bool GenerateFoundations() {
@@ -87,36 +115,52 @@ public class Building {
         }
     }
 
-    public CustomMesh CreateMesh() {
+    public CustomMesh CreateMesh(bool flattenBuildings = false) {
         CustomMesh outputMesh = new CustomMesh(new Vector3[0], new int[0]);
         if (foundationEdges != null) {
-            foreach (Road edge in foundationEdges) {
-                Vector2 source = edge.source;
-                Vector2 destination = edge.destination;
-                Vector3[] verts = new Vector3[] {
-                    new Vector3(source.x, 0, source.y),
-                    new Vector3(destination.x, 0, destination.y),
-                    new Vector3(destination.x, buildingHeight, destination.y),
-                    new Vector3(source.x, buildingHeight, source.y),
-                };
-                int[] tris = new int[] { 0, 1, 2, 0, 2, 3 };
-                CustomMesh wall = new CustomMesh(verts, tris);
-                outputMesh.ConcatMesh(wall);
+            if (!flattenBuildings) {
+                foreach (Road edge in foundationEdges) {
+                    Vector2 source = edge.source;
+                    Vector2 destination = edge.destination;
+                    Vector3[] verts = new Vector3[] {
+                        new Vector3(source.x, 0, source.y),
+                        new Vector3(destination.x, 0, destination.y),
+                        new Vector3(destination.x, buildingHeight, destination.y),
+                        new Vector3(source.x, buildingHeight, source.y),
+                    };
+                    int[] tris = new int[] { 0, 1, 2, 0, 2, 3 };
+                    CustomMesh wall = new CustomMesh(verts, tris);
+                    outputMesh.ConcatMesh(wall);
+                }
             }
-            outputMesh.ConcatMesh(CreateRoof());
+            outputMesh.ConcatMesh(CreateRoof(flattenBuildings));
         }
         return outputMesh;
     }
 
-    public CustomMesh CreateRoof() {
+    public CustomMesh CreateRoof(bool flattenBuildings = false) {
+        float displayHeight = flattenBuildings ? 0 : buildingHeight;
         Vector2[] verts2D = foundationVertices.ToArray();
         Triangulator tr = new Triangulator(verts2D);
         int[] indices = tr.Triangulate();
         Vector3[] vertices = new Vector3[verts2D.Length];
         for (int i = 0; i < vertices.Length; i++) {
-            vertices[i] = new Vector3(verts2D[i].x, buildingHeight, verts2D[i].y);
+            vertices[i] = new Vector3(verts2D[i].x, displayHeight, verts2D[i].y);
         }
         CustomMesh mesh = new CustomMesh(vertices, indices);
         return mesh;
+    }
+
+    public float SignedPolygonArea() {
+
+        // Get the areas.
+        float area = 0;
+        foreach (Road edge in foundationEdges) {
+            area += (edge.destination.x + edge.source.x) *
+                (edge.destination.y - edge.source.y) / 2;
+        }
+
+        // Return the result.
+        return area;
     }
 }

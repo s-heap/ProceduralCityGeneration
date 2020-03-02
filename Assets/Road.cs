@@ -195,7 +195,10 @@ public class Road : IEquatable<Road> {
 
     // For clockwise turns, the less, the better. Full backtracking edge will return 360
     public float GetAngleAntiClockWise(Road input) {
-        return (359 + Vector2.SignedAngle(source - destination, input.destination - input.source)) % 360 + 1;
+        if (source == input.destination && destination == input.source) {
+            return 360;
+        }
+        return (360 + Vector2.SignedAngle(source - destination, input.destination - input.source)) % 360;
     }
 
     public override bool Equals(object obj) {
@@ -218,5 +221,13 @@ public class Road : IEquatable<Road> {
         float direction = ((GetReverseRoadBearing() - GetAngleAntiClockWise(secondRoad) / 2) % 360) * Mathf.Deg2Rad;
         Vector2 vec = length * new Vector2(Mathf.Sin(direction), Mathf.Cos(direction)).normalized;
         return new Road(destination, destination + vec);
+    }
+
+    public Vector2 GetGradient() {
+        return (destination - source).normalized;
+    }
+
+    public bool AreParallel(Road input) {
+        return GetGradient() == input.GetGradient();
     }
 }

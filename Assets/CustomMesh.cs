@@ -7,9 +7,12 @@ public class CustomMesh {
     public Vector3[] verts;
     public int[] tris;
 
-    public CustomMesh(Vector3[] verts, int[] tris) {
+    Color[] colors;
+
+    public CustomMesh(Vector3[] verts, int[] tris, Color[] colors = null) {
         this.verts = verts;
         this.tris = tris;
+        this.colors = colors;
     }
 
     public void ConcatMesh(CustomMesh input) {
@@ -27,10 +30,23 @@ public class CustomMesh {
         tris = newTris;
     }
 
-    public Mesh GetMesh() {
+    public Mesh GetMesh(CityConstants constants = null) {
         Mesh mesh = new Mesh();
+        mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
         mesh.vertices = verts;
         mesh.triangles = tris;
+        if (constants != null) {
+            Color[] outputColors = new Color[verts.Length];
+            for (int i = 0; i < verts.Length; i++) {
+                Vector2 currentVert = new Vector2(verts[i].x, verts[i].z);
+                float popNoiseValue = constants.GetPopNoiseValue(currentVert);
+                float busNoiseValue = constants.GetBusNoiseValue(currentVert);
+
+                float noiseValue = (popNoiseValue + busNoiseValue + constants.GetNormalisedDistanceToCentre(currentVert)) / 3.0f;
+                outputColors[i] = new Color(Mathf.Pow(noiseValue, 3) * 2, 0.1f, 0.1f);
+            }
+            mesh.colors = outputColors;
+        }
         return mesh;
     }
 }

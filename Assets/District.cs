@@ -1,10 +1,11 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-public class District {
+public class District : IComparable<District> {
     List<Vector2> boundaryNodes;
     Vector2 centre;
 
@@ -14,14 +15,18 @@ public class District {
 
     List<Building> buildings;
 
+    private CityConstants constants;
+
     float segmentSize = 10;
     int degree = 3;
     float snapSize = 5;
     float connectivity;
-    float proportionalRandomness = 0.25f;
+    float proportionalRandomness = 0.2f;
     int startingRoadAmount = 3;
 
-    public District(List<Vector2> points, Vector2 centre) {
+    public District(List<Vector2> points, Vector2 centre, CityConstants constants) {
+        this.constants = constants;
+
         this.boundaryNodes = points;
         this.centre = centre;
         UpdateBoundaryEdges();
@@ -53,13 +58,13 @@ public class District {
         //     Debug.Log(edge);
         // }
 
-        // Road firstRoad = longestEdge.GetPerpendicularRoad(segmentSize + Random.Range(-proportionalRandomness * segmentSize, proportionalRandomness * segmentSize)); // TODO - Add midpoint/rotation deviation
+        // Road firstRoad = longestEdge.GetPerpendicularRoad(segmentSize + UnityEngine.Random.Range(-proportionalRandomness * segmentSize, proportionalRandomness * segmentSize)); // TODO - Add midpoint/rotation deviation
 
         secondaryEdges = new List<Road>();
         Queue<Road> nodeQueue = new Queue<Road>();
 
         foreach (Road edge in longestEdges) {
-            Road startingRoad = edge.GetPerpendicularRoad(segmentSize + Random.Range(-proportionalRandomness * segmentSize, proportionalRandomness * segmentSize)); // TODO - Add midpoint/rotation deviation
+            Road startingRoad = edge.GetPerpendicularRoad(segmentSize + UnityEngine.Random.Range(-proportionalRandomness * segmentSize, proportionalRandomness * segmentSize)); // TODO - Add midpoint/rotation deviation
             AddBoundaryNode(edge, startingRoad);
             if (!CheckIntersects(startingRoad)) {
                 secondaryEdges.Add(startingRoad);
@@ -71,14 +76,20 @@ public class District {
         //     secondaryEdges.Add(firstRoad);
         //     nodeQueue.Enqueue(firstRoad);
         // }
-        int counter = 0;
+        // int counter = 0;
 
-        while (nodeQueue.Count != 0 && counter++ < 200) {
+        int count = 0;
+
+        while (nodeQueue.Count != 0) {
+            if (count++ > 2000) {
+                Debug.Log("INFINITE DISTRICT GENERATION: SECONDARY ROAD GEN");
+                return;
+            }
             Road currentRoad = nodeQueue.Dequeue();
             // Debug.Log("Popping and spreading edge: : " + currentRoad);
             for (int i = 1; i <= degree; i++) {
-                float rotationModifier = i * (360 / (degree + 1)) + Random.Range(-(360 * proportionalRandomness) / (degree + 1), (360 * proportionalRandomness) / (degree + 1)); // TODO - Add rotation deviation.
-                Road newEdge = currentRoad.GetSproutedRoad(rotationModifier, segmentSize + Random.Range(-proportionalRandomness * segmentSize, proportionalRandomness * segmentSize)); // TODO - Add segmetn size deviation.
+                float rotationModifier = i * (360 / (degree + 1)) + UnityEngine.Random.Range(-(360 * proportionalRandomness) / (degree + 1), (360 * proportionalRandomness) / (degree + 1)); // TODO - Add rotation deviation.
+                Road newEdge = currentRoad.GetSproutedRoad(rotationModifier, segmentSize + UnityEngine.Random.Range(-proportionalRandomness * segmentSize, proportionalRandomness * segmentSize)); // TODO - Add segmetn size deviation.
 
                 List<Vector2> inRangeEdges = GetSnapRangeVectors(newEdge, currentRoad);
 
@@ -197,7 +208,12 @@ public class District {
             if (edgeLength > output[topOfarray].GetLength()) {
                 int iterator = topOfarray++;
                 topOfarray = Mathf.Min(topOfarray, num - 1);
+                int count = 0;
                 while (iterator >= 0 && edgeLength > output[iterator].GetLength()) {
+                    if (count++ > 2000) {
+                        Debug.Log("INFINITE LOOP DISTRICT GENERATION: FINDING LONGEST EDGES");
+                        return null;
+                    }
                     if (iterator + 1 < num) {
                         output[iterator + 1] = output[iterator];
                     }
@@ -263,9 +279,9 @@ public class District {
         return list;
     }
 
-    public CustomMesh CreateMesh() {
+    public CustomMesh CreateMesh(bool flattenBuildings = false) {
         CustomMesh roads = CreateRoadMesh();
-        CustomMesh buildings = CreateBuildingMesh();
+        CustomMesh buildings = CreateBuildingMesh(flattenBuildings);
         roads.ConcatMesh(buildings);
         return roads;
     }
@@ -284,117 +300,155 @@ public class District {
         return mesh;
     }
 
-    public CustomMesh CreateBuildingMesh() {
+    public CustomMesh CreateBuildingMesh(bool flattenBuildings = false) {
         CustomMesh outputMesh = new CustomMesh(new Vector3[0], new int[0]);
-        foreach (Building building in buildings) {
-            outputMesh.ConcatMesh(building.CreateMesh());
+        if (buildings != null) {
+            foreach (Building building in buildings) {
+                outputMesh.ConcatMesh(building.CreateMesh(flattenBuildings));
+            }
         }
         return outputMesh;
     }
 
-    public Dictionary<Vector2, List<Road>> GetGraph() {
-        Dictionary<Vector2, List<Road>> graph = new Dictionary<Vector2, List<Road>>();
-        foreach (Road edge in boundaryEdges.Concat(secondaryEdges)) {
-            List<Road> edgeList;
-            if (graph.TryGetValue(edge.source, out edgeList)) {
-                edgeList.Add(edge);
-            } else {
-                edgeList = new List<Road>();
-                edgeList.Add(edge);
-                graph.Add(edge.source, edgeList);
-            }
-
-            if (graph.TryGetValue(edge.destination, out edgeList)) {
-                edgeList.Add(edge.GetInverse());
-            } else {
-                edgeList = new List<Road>();
-                edgeList.Add(edge.GetInverse());
-                graph.Add(edge.destination, edgeList);
-            }
-        }
+    public RoadGraph GetGraph() {
+        RoadGraph graph = new RoadGraph();
+        graph.AddEdgeList(boundaryEdges);
+        graph.AddEdgeList(secondaryEdges);
         return graph;
     }
 
     public List<Building> CreateBuildings() {
         List<Building> output = new List<Building>();
-        Dictionary<Vector2, List<Road>> graph = GetGraph();
+        RoadGraph graph = GetGraph();
         HashSet<Road> exploredEdges = new HashSet<Road>();
+        HashSet<Road> addedToQueue = new HashSet<Road>();
 
-        Vector2 startNode = GetLeftMostNode(graph);
+        // ClearConsole();
+        // Debug.Log("Creating Buildings");
+
+        // Debug.Log("Boundary Edges:");
+        // foreach (Road edge in boundaryEdges) {
+        //     Debug.Log(edge);
+
+        // }
+
+        // Debug.Log("Secondary Edges:");
+        // foreach (Road edge in secondaryEdges) {
+        //     Debug.Log(edge);
+
+        // }
+
+        // Debug.Log("\n\n\n");
+        // Debug.Log("\n\n\n");
+        // Debug.Log("\n\n\n");
+        // Debug.Log("\n\n\n");
+
+        Vector2 startNode = graph.GetLeftMostNode();
+
+        // Debug.Log("Start Node: " + startNode);
 
         LogOutsideEdges(graph, exploredEdges, startNode);
+
+        // Debug.Log("Num outside Edges Logged: " + exploredEdges.Count);
 
         int counter = exploredEdges.Count;
 
         Road startEdge = GetStartEdge(graph, startNode);
 
+        // Debug.Log("Start Edge: " + startEdge);
+
         Queue<Road> nextEdges = new Queue<Road>();
         nextEdges.Enqueue(startEdge);
 
+        int outerCounter = 0;
+
         while (nextEdges.Count > 0) {
+
+            if (outerCounter++ > 2000) {
+                Debug.Log("INFINITE LOOP MINIMAL CYCLE: OUTER FAILURE");
+                return null;
+            }
+
             Road currentEdge = nextEdges.Dequeue();
+
             if (exploredEdges.Contains(currentEdge)) { continue; }
 
-            // Debug.Log("Opening new circuit " + currentEdge + " set size: " + exploredEdges.Count);
+            // Debug.Log("Resolving Queue Entry: " + currentEdge);
 
             List<Road> currentBuildingList = new List<Road>();
             Vector2 buildingStartNode = currentEdge.source;
 
+            int innerCounter = 0;
+
             do {
+                // Debug.Log("    Resolving Current Edge: " + currentEdge);
                 exploredEdges.Add(currentEdge);
                 counter++;
                 currentBuildingList.Add(currentEdge);
-                List<Road> sproutingEdges;
-                graph.TryGetValue(currentEdge.destination, out sproutingEdges);
+                List<Road> sproutingEdges = graph.GetRoadList(currentEdge.destination);
                 foreach (Road edge in sproutingEdges) {
                     if (!exploredEdges.Contains(edge)) {
-                        nextEdges.Enqueue(edge);
+                        if (!addedToQueue.Contains(edge)) {
+                            nextEdges.Enqueue(edge);
+                            addedToQueue.Add(edge);
+                            // Debug.Log("        Adding To Queue: " + edge + " Angle: " + currentEdge.GetAngleAntiClockWise(edge));
+                        }
+
                     }
                 }
+                if (innerCounter++ > 2000) {
+                    Debug.Log("INFINITE LOOP MINIMAL CYCLE: INNER FAILURE");
+                    return null;
+                }
                 currentEdge = currentEdge.GetMostClockWise(sproutingEdges);
-            } while (currentEdge.source != buildingStartNode);
 
-            output.Add(new Building(currentBuildingList));
+            }
+            while (currentEdge.source != buildingStartNode);
+
+            // Debug.Log("    Start Returned To, Logging Building With : " + currentBuildingList.Count + " Edges");
+            output.Add(new Building(currentBuildingList, constants));
             // Debug.Log("Building Edge Num: " + currentBuildingList.Count + "Queue Size " + nextEdges.Count);
 
         }
         int totalEdgeNumber = boundaryEdges.Count + secondaryEdges.Count;
-        Debug.Log("Number of edges resolved: " + counter + " Total Number Of Edges: " + 2 * totalEdgeNumber);
+        // Debug.Log("Number of edges resolved: " + counter + " Total Number Of Edges: " + 2 * totalEdgeNumber);
 
         buildings = output;
         return output;
     }
 
-    public Road GetStartEdge(Dictionary<Vector2, List<Road>> graph, Vector2 startNode) {
-        List<Road> sproutingEdges;
-        graph.TryGetValue(startNode, out sproutingEdges);
+    public Road GetStartEdge(RoadGraph graph, Vector2 startNode) {
+        List<Road> sproutingEdges = graph.GetRoadList(startNode);
+
         return new Road(new Vector2(startNode.x - 1, startNode.y), startNode).GetLeastClockWise(sproutingEdges);
     }
 
-    public void LogOutsideEdges(Dictionary<Vector2, List<Road>> graph, HashSet<Road> exploredEdges, Vector2 startNode) {
-        List<Road> sproutingEdges;
-        graph.TryGetValue(startNode, out sproutingEdges);
+    public void LogOutsideEdges(RoadGraph graph, HashSet<Road> exploredEdges, Vector2 startNode) {
+        List<Road> sproutingEdges = graph.GetRoadList(startNode);
         Road currentEdge = new Road(new Vector2(startNode.x - 1, startNode.y), startNode).GetMostClockWise(sproutingEdges);
         exploredEdges.Add(currentEdge);
 
-        graph.TryGetValue(currentEdge.destination, out sproutingEdges);
+        sproutingEdges = graph.GetRoadList(currentEdge.destination);
 
+        int count = 0;
         while (currentEdge.destination != startNode) {
+            if (count++ > 2000) {
+                Debug.Log("INFINITE LOOP DISTRICT GENERATION: LOGGING OUTSIDE EDGES IN MINIMAL CYCLE FINDER");
+                return;
+            }
+
             currentEdge = currentEdge.GetMostClockWise(sproutingEdges);
 
             exploredEdges.Add(currentEdge);
 
-            graph.TryGetValue(currentEdge.destination, out sproutingEdges);
+            sproutingEdges = graph.GetRoadList(currentEdge.destination);
         }
     }
 
-    public Vector2 GetLeftMostNode(Dictionary<Vector2, List<Road>> graph) {
-        Vector2 leftMost = boundaryEdges[0].source;
-        foreach (Vector2 node in graph.Keys) {
-            if (node.x < leftMost.x) {
-                leftMost = node;
-            }
-        }
-        return leftMost;
+    public int CompareTo(District other) {
+        float thisLength = constants.GetDistanceToCentre(centre);
+        float otherLength = constants.GetDistanceToCentre(other.centre);
+        return thisLength.CompareTo(otherLength);
     }
+
 }

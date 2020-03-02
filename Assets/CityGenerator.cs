@@ -11,201 +11,74 @@ public class CityGenerator : MonoBehaviour {
 	[SerializeField] private float m_mapWidth = 1000;
 	[SerializeField] private float m_mapHeight = 1000;
 
-	private List<District> districts;
+	City currrentCity;
+
+	bool flattenBuildings = false;
+	int numToView = 1;
 
 	void Awake() {
-		// Debug.Log((360 - Vector2.SignedAngle(new Vector2(0, 1), new Vector2(1, 1))) % 360);
-		// Debug.Log((360 - Vector2.SignedAngle(new Vector2(0, 1), new Vector2(-1, 1))) % 360);
-		// Road one = new Road(new Vector2(35, 50), new Vector2(30, 50));
-		// Debug.Log(one.GetPointDistance(new Vector2(40f, 50f)));
 
-		// Road testing = new Road(new Vector2(37.8f, 51.8f), new Vector2(27.9f, 52.8f));
+		// RoadGraph graph = new RoadGraph();
 
-		// Debug.Log(testing.GetPointDistance(new Vector2(57.4f, 49.4f)));
+		// Road test1 = new Road(new Vector2(0, 0), new Vector2(0, 10));
+		// Road test2 = new Road(new Vector2(0, 0), new Vector2(0, 5));
 
-		// HashSet<Vector2> hashSet = new HashSet<Vector2>();
-		// hashSet.Add(new Vector2(0, 0));
-		// hashSet.Add(new Vector2(1, 0));
-		// hashSet.Add(new Vector2(0, 0));
-		// hashSet.Add(new Vector2(1, 1));
-		// hashSet.Add(new Vector2(1, 0));
-		// foreach (Vector2 vector in hashSet.ToList()) {
-		// 	// Debug.Log(vector);
-		// }
+		// graph.SmartAddEdge(test2);
+		// graph.Print();
 
-		// Road one = new Road(new Vector2(0, 0), new Vector2(10, 10));
-		// Road two = new Road(new Vector2(0, 10), new Vector2(0, 0));
-		// Road three = new Road(new Vector2(0, 10), new Vector2(10, 10));
-		// Debug.Log(one.LineIntersection(two));
-		// Debug.Log(one.LineIntersection(three));
+		// graph.SmartAddEdge(test1);
+		// graph.Print();
 
-		// Vector3[] a = new Vector3[2];
-		// a[0] = new Vector3(0, 0, 0);
-		// a[1] = new Vector3(1, 1, 1);
-		// int[] b = new int[2];
-		// b[0] = 0;
-		// b[1] = 1;
-		// CustomMesh finalMesh = new CustomMesh(a, b);
-		// finalMesh.ConcatMesh(new CustomMesh(a, b));
-		// finalMesh.ConcatMesh(new CustomMesh(a, finalMesh.tris));
-		// foreach (Vector3 i in finalMesh.verts) {
-		// 	Debug.Log(i);
-		// }
-		// foreach (int i in finalMesh.tris) {
-		// 	Debug.Log(i);
-		// }
+		// Road test3 = new Road(new Vector2(-5, 5), new Vector2(0, 5));
+		// Debug.Log(test2.LineIntersection(test1));
+		// Debug.Log(test1.GetAngleAntiClockWise(test2));
+		// Debug.Log(test1.LineIntersection(test3));
+		// Debug.Log(test1.GetGradient());
+		// Debug.Log(test2.GetGradient());
+		// Debug.Log(test2.AreParallel(test1));
+		// Debug.Log(test1.AreParallel(test2));
+		// Debug.Log(test1.AreParallel(test2.GetInverse()));
 
-		// List<Vector2> points = new List<Vector2>();
-		// points.Add(new Vector2(-1, -1));
-		// points.Add(new Vector2(-1, 1));
-		// points.Add(new Vector2(1, 1));
-		// points.Add(new Vector2(1, -1));
-		// District test = new District(points, new Vector2(0, 0));
+		Road test1 = new Road(new Vector2(0, 0), new Vector2(0, 20));
+		Road test2 = new Road(new Vector2(0, 20), new Vector2(20, 20));
+		Road test3 = new Road(new Vector2(20, 20), new Vector2(20, 0));
+		Road test4 = new Road(new Vector2(20, 0), new Vector2(0, 0));
+		List<Road> input = new List<Road>();
+		input.Add(test1);
+		input.Add(test2);
+		input.Add(test3);
+		input.Add(test4);
+		Building currentBuilding = new Building(input, new CityConstants(100, 1000, 1000, new Vector2(0, 0), new Vector2(0, 0)));
 
-		// List<List<Road>> buildings = test.GetBuildingLocations();
-		// Debug.Log(buildings.Count);
+		var cheese = input.GetRange(0, 2);
+		Debug.Log(cheese.Count);
 
-		// foreach (List<Road> building in buildings) {
-		// 	foreach (Road road in building) {
-		// 		Debug.Log(road);
-		// 	}
-		// }
-
-		// Dictionary<Vector2, List<Road>> graph = test.GetGraph();
-
-		// foreach (Vector2 point in graph.Keys) {
-		// 	Debug.Log(point);
-		// }
-		// List<Road> temp;
-		// if (graph.TryGetValue(graph.Keys.ElementAt(0), out temp)) {
-		// 	foreach (Road edge in temp) {
-		// 		Debug.Log(edge);
-		// 	}
-		// }
-
-		// Road temp = new Road(new Vector2(0, 0), new Vector2(1, 1));
-		// Road temp2 = new Road(new Vector2(0, 0), new Vector2(1, 1));
-		// Road tempInverse = new Road(new Vector2(1, 1), new Vector2(0, 0));
-
-		// HashSet<Road> exploredEdges = new HashSet<Road>();
-		// exploredEdges.Add(temp);
-
-		// if (exploredEdges.Contains(temp2)) {
-		// 	Debug.Log("Search successfull");
-		// } else {
-		// 	Debug.Log("Search unsuccessfull");
-		// }
-
-		// if (temp == temp2) {
-		// 	Debug.Log("Search successfull");
-		// } else {
-		// 	Debug.Log("Search unsuccessfull");
-		// }
-
-		// if (temp.Equals(temp2)) {
-		// 	Debug.Log("Search successfull");
-		// } else {
-		// 	Debug.Log("Search unsuccessfull");
-		// }
-
-		Road temp = new Road(new Vector2(0, 0), new Vector2(0, 1));
-		Road temp2 = new Road(new Vector2(0, 1), new Vector2(1, 1));
-		Debug.Log(temp.GetReverseRoadBearing());
-		Debug.Log(temp2.GetReverseRoadBearing());
-		Debug.Log(temp.GetAngleAntiClockWise(temp2));
-		Debug.Log(temp.GetBisector(temp2, 1));
-
-		// Road test = new Road(new Vector2(0, 0), new Vector2(0, 1));
-		// Road test2 = new Road(new Vector2(0, 1), new Vector2(0, 0));
-		// Debug.Log(test.GetAngleAntiClockWise(test2));
-
-		Build();
+		currrentCity = new City(m_pointCount, m_mapWidth, m_mapHeight);
+		GetComponent<MeshFilter>().mesh = currrentCity.CreateMesh(numToView, flattenBuildings);
 	}
 
 	void Update() {
 		if (Input.GetMouseButtonDown(2)) {
-			Build();
-		}
-		// if (Input.GetMouseButtonDown(0)) {
-		// 	currentBuilding = (currentBuilding + 1) % buildings.Count;
-		// 	Debug.Log(currentBuilding + " out of " + buildings.Count);
-		// }
-	}
-
-	private void Build() {
-		do { districts = CreateDistricts(); } while (districts.Count < 1);
-
-		CustomMesh finalMesh = new CustomMesh(new Vector3[0], new int[0]);
-
-		foreach (District district in districts) {
-			district.CreateSecondaryRoads();
-			district.CreateBuildings();
-			finalMesh.ConcatMesh(district.CreateMesh());
+			currrentCity = new City(m_pointCount, m_mapWidth, m_mapHeight);
+			GetComponent<MeshFilter>().mesh = currrentCity.CreateMesh(numToView, flattenBuildings);
 		}
 
-		Mesh outputMesh = finalMesh.GetMesh();
-		outputMesh.RecalculateNormals();
-
-		GetComponent<MeshFilter>().mesh = outputMesh;
-	}
-
-	private List<District> CreateDistricts() {
-		Delaunay.Voronoi v = GetVoronoi();
-
-		List<District> newDistricts = new List<District>();
-
-		foreach (Vector2 districtHubPoint in v.SiteCoords()) {
-			List<Vector2> districtBoundaryPoints = v.Region(districtHubPoint);
-			if (!IsOnBorder(districtBoundaryPoints)) {
-				newDistricts.Add(new District(districtBoundaryPoints, districtHubPoint));
-			}
+		if (Input.GetMouseButtonDown(1)) {
+			flattenBuildings = !flattenBuildings;
+			GetComponent<MeshFilter>().mesh = currrentCity.CreateMesh(numToView, flattenBuildings);
 		}
-		return newDistricts;
-	}
 
-	private bool IsOnBorder(List<Vector2> points) {
-		foreach (Vector2 point in points) {
-			if (point.x == 0 || point.x == m_mapWidth || point.y == 0 || point.y == m_mapHeight) {
-				return true;
-			}
+		if (Input.GetKey("=")) {
+			numToView += 1;
+			Debug.Log(numToView);
+			GetComponent<MeshFilter>().mesh = currrentCity.CreateMesh(numToView, flattenBuildings);
+
 		}
-		return false;
-	}
-
-	private Delaunay.Voronoi GetVoronoi() {
-		List<uint> colors = new List<uint>();
-		List<Vector2> m_points = new List<Vector2>();
-
-		for (int i = 0; i < m_pointCount; i++) {
-			colors.Add(0);
-			m_points.Add(new Vector2(
-				UnityEngine.Random.Range(0, m_mapWidth),
-				UnityEngine.Random.Range(0, m_mapHeight)));
+		if (Input.GetKey("-")) {
+			numToView -= 1;
+			Debug.Log(numToView);
+			GetComponent<MeshFilter>().mesh = currrentCity.CreateMesh(numToView, flattenBuildings);
 		}
-		return new Delaunay.Voronoi(m_points, colors, new Rect(0, 0, m_mapWidth, m_mapHeight));
 	}
 
-	void OnDrawGizmos() {
-		// if (districts != null) {
-		// 	foreach (District district in districts) {
-		// 		district.DrawGizmos();
-		// 	}
-		// }
-
-		// Gizmos.color = Color.red;
-		// if (buildings != null) {
-		// 	Building temp = new Building(buildings[currentBuilding]);
-		// 	temp.DrawGizmos();
-		// }
-
-		// DrawBox();
-	}
-
-	void DrawBox() {
-		Gizmos.color = Color.yellow;
-		Gizmos.DrawLine(new Vector2(0, 0), new Vector2(0, m_mapHeight));
-		Gizmos.DrawLine(new Vector2(0, 0), new Vector2(m_mapWidth, 0));
-		Gizmos.DrawLine(new Vector2(m_mapWidth, 0), new Vector2(m_mapWidth, m_mapHeight));
-		Gizmos.DrawLine(new Vector2(0, m_mapHeight), new Vector2(m_mapWidth, m_mapHeight));
-	}
 }
