@@ -7,7 +7,7 @@ using UnityEngine;
 public class RoadGraph {
 
     public Dictionary<Vector2, List<Road>> graph;
-    HashSet<Road> storedEdges;
+    public HashSet<Road> storedEdges;
 
     public RoadGraph() {
         this.graph = new Dictionary<Vector2, List<Road>>();
@@ -100,4 +100,35 @@ public class RoadGraph {
         }
     }
 
+    public CustomSingleMesh CreateRoadMesh(CityConstants constants, List<Road> roadsToIgnore = null) {
+        if (roadsToIgnore != null) {
+            foreach (Road edge in roadsToIgnore) {
+                storedEdges.Remove(edge);
+            }
+        }
+        Road[] allEdges = storedEdges.ToArray();
+        foreach (Road edge in allEdges) {
+            edge.stress = (constants.GetNormalisedDistanceToCentre(edge.GetMidPoint()));
+            // edge.stress = -0.00001f;
+        }
+
+        Vector3[] verts = new Vector3[allEdges.Length * 4];
+        int[] tris = new int[2 * allEdges.Length * 3];
+        Color[] colors = new Color[allEdges.Length * 4];
+
+        for (int i = 0; i < allEdges.Length; i++) {
+            Vector3[] meshCoords = allEdges[i].GetMeshCoords(constants.roadWidth);
+            System.Array.Copy(meshCoords, 0, verts, i * 4, 4);
+
+            int[] currentTris = Road.GetTris(i * 4);
+            System.Array.Copy(currentTris, 0, tris, i * 6, 6);
+
+            Color[] currentColors = allEdges[i].GetColorCoords();
+            System.Array.Copy(currentColors, 0, colors, i * 4, 4);
+
+        }
+
+        CustomSingleMesh mesh = new CustomSingleMesh(verts, tris, colors);
+        return mesh;
+    }
 }

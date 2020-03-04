@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+[System.Serializable]
 public class Building {
     private CityConstants constants;
 
@@ -12,11 +13,12 @@ public class Building {
     List<Road> foundationEdges;
     List<Vector2> foundationVertices;
 
-    float roadSpacing = 2.0f;
+    float roadWidth;
 
-    float buildingHeight = 2.5f;
+    float buildingHeight = 10f;
 
-    public Building(List<Road> landBorders, CityConstants constants) {
+    public Building(List<Road> landBorders, CityConstants constants, float roadWidth) {
+        this.roadWidth = roadWidth;
         this.constants = constants;
         this.landBorders = landBorders;
 
@@ -29,13 +31,13 @@ public class Building {
     }
 
     public float GetPerlinValue(Vector2 input) {
-        Vector2 populationCoord = input / 50 + constants.GetPopShift();
-        Vector2 businessCoord = input / 50 + constants.GetBusShift();
+        Vector2 populationCoord = input / 75 + constants.GetPopShift();
+        Vector2 businessCoord = input / 75 + constants.GetBusShift();
 
         float populationNoiseValue = Mathf.PerlinNoise(populationCoord.x, populationCoord.y);
         float businessNoiseValue = Mathf.PerlinNoise(businessCoord.x, businessCoord.y);
 
-        float noiseValue = (populationNoiseValue + businessNoiseValue + constants.GetNormalisedDistanceToCentre(input)) / 3.0f;
+        float noiseValue = (populationNoiseValue + businessNoiseValue + constants.GetNormalisedDistanceToCentre(input) + constants.GetNormalisedDistanceToCentre(input)) / 4.0f;
 
         if (noiseValue == 0) {
             Debug.Log("PERLIN NOISE 0 GENERATED");
@@ -43,7 +45,7 @@ public class Building {
         }
 
         int range = 100;
-        int power = 5;
+        int power = 4;
 
         return range * Mathf.Pow(noiseValue, power);
     }
@@ -51,7 +53,7 @@ public class Building {
     public bool GenerateFoundations() {
         List<Road> inwardJuttingEdges = new List<Road>();
         for (int i = 0; i < landBorders.Count; i++) {
-            Road juttingEdge = landBorders[i].GetBisector(landBorders[(i + 1) % landBorders.Count], roadSpacing);
+            Road juttingEdge = landBorders[i].GetBisector(landBorders[(i + 1) % landBorders.Count], 1.5f * roadWidth);
             if (CheckIntersectWithLandBorders(juttingEdge)) {
                 return false;
             }
@@ -115,8 +117,8 @@ public class Building {
         }
     }
 
-    public CustomMesh CreateMesh(bool flattenBuildings = false) {
-        CustomMesh outputMesh = new CustomMesh(new Vector3[0], new int[0]);
+    public CustomSingleMesh CreateMesh(bool flattenBuildings = false) {
+        CustomSingleMesh outputMesh = new CustomSingleMesh();
         if (foundationEdges != null) {
             if (!flattenBuildings) {
                 foreach (Road edge in foundationEdges) {
@@ -129,7 +131,7 @@ public class Building {
                         new Vector3(source.x, buildingHeight, source.y),
                     };
                     int[] tris = new int[] { 0, 1, 2, 0, 2, 3 };
-                    CustomMesh wall = new CustomMesh(verts, tris);
+                    CustomSingleMesh wall = new CustomSingleMesh(verts, tris);
                     outputMesh.ConcatMesh(wall);
                 }
             }
@@ -138,7 +140,7 @@ public class Building {
         return outputMesh;
     }
 
-    public CustomMesh CreateRoof(bool flattenBuildings = false) {
+    public CustomSingleMesh CreateRoof(bool flattenBuildings = false) {
         float displayHeight = flattenBuildings ? 0 : buildingHeight;
         Vector2[] verts2D = foundationVertices.ToArray();
         Triangulator tr = new Triangulator(verts2D);
@@ -147,7 +149,7 @@ public class Building {
         for (int i = 0; i < vertices.Length; i++) {
             vertices[i] = new Vector3(verts2D[i].x, displayHeight, verts2D[i].y);
         }
-        CustomMesh mesh = new CustomMesh(vertices, indices);
+        CustomSingleMesh mesh = new CustomSingleMesh(vertices, indices);
         return mesh;
     }
 

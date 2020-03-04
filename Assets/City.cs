@@ -4,33 +4,75 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
+[System.Serializable]
 public class City {
-    private CityConstants constants;
+    public CityConstants constants;
 
-    private List<District> districts;
+    public List<District> districts;
 
-    public Mesh cityMesh;
-    public Mesh[] cityMeshs;
-    public Mesh flatCityMesh;
-    public Mesh[] flatCityMeshs;
+    public CustomCityMesh cityMesh;
+    public CustomCityMesh flatCityMesh;
 
-    public City(int m_pointCount, float m_mapWidth, float m_mapHeight) {
+    private int totalPopulation;
+
+    private List<float> popValues;
+    private float popValueTotal;
+    private List<float> busValues;
+    private float busValueTotal;
+
+    public City(int m_pointCount, float m_mapWidth, float m_mapHeight, int population) {
+        // Debug.Log("Total input population found to be " + population);
+
         Vector2 populationPerlinShift = new Vector2(Random.Range(-1000, 1000), Random.Range(-1000, 1000));
         Vector2 businessPerlinShift = new Vector2(Random.Range(-1000, 1000), Random.Range(-1000, 1000));
-
+        totalPopulation = population;
         constants = new CityConstants(m_pointCount, m_mapWidth, m_mapHeight, populationPerlinShift, businessPerlinShift);
 
-        Vector2 centreOfMap = constants.GetCentre();
-        GameObject.Find("Main Camera").transform.position = new Vector3(centreOfMap.x, 100, centreOfMap.y);
-
         Build();
-        // PreCalculateMeshes();
+        PreCalculateMeshes();
+
+        resetLightingAndCamera();
+
+        popValues = new List<float>();
+        busValues = new List<float>();
+        foreach (District district in districts) {
+            popValues.Add(district.GetPopValue());
+            busValues.Add(district.GetBusValue());
+        }
+        popValueTotal = popValues.Sum();
+        busValueTotal = busValues.Sum();
+
+        for (int i = 0; i < districts.Count; i++) {
+            districts[i].population = popValues[i] / popValueTotal * totalPopulation;
+        }
+
+        CalculateStressNetwork();
+    }
+
+    public void CalculateStressNetwork() {
+        RoadGraph graph = GetGraph();
+        CustomSingleMesh mesh = graph.CreateRoadMesh(constants);
+        cityMesh.AddStressNetwork(mesh);
+        CustomSingleMesh flatMesh = graph.CreateRoadMesh(constants);
+        flatCityMesh.AddStressNetwork(flatMesh);
+    }
+
+    public void resetLightingAndCamera() {
+        Vector2 centreOfMap = constants.GetCentre();
+        GameObject.Find("Main Camera").transform.position = new Vector3(centreOfMap.x + constants.GetMaxDimension() / 2, constants.GetMaxDimension() / 2, centreOfMap.y + constants.GetMaxDimension() / 2);
+        GameObject.Find("Main Camera").transform.LookAt(new Vector3(centreOfMap.x, 0, centreOfMap.y));
+
+        GameObject lightGameObject = GameObject.Find("Point Light");
+        Light lightComp = lightGameObject.GetComponent<Light>();
+        lightComp.range = constants.GetMaxDimension();
+        lightGameObject.transform.position = new Vector3(centreOfMap.x, constants.GetMaxDimension() / 2, centreOfMap.y);
+
     }
 
     private void Build() {
         int count = 0;
         do {
-            districts = CreateDistricts();
+            districts = CreateConnectedDistricts();
             if (count++ > 2000) {
                 Debug.Log("INFINITE LOOP CITY GENERATION: NON EMPTY DISTRICT LIST");
                 return;
@@ -42,49 +84,56 @@ public class City {
             district.CreateBuildings();
         }
         districts.Sort();
-        cityMeshs = new Mesh[districts.Count];
-        flatCityMeshs = new Mesh[districts.Count];
     }
 
-    // public void PreCalculateMeshes() {
-    //     cityMesh = CreateMesh();
-    //     flatCityMesh = CreateMesh(true);
-    // }
+    public void PreCalculateMeshes() {
+        cityMesh = new CustomCityMesh();
+        flatCityMesh = new CustomCityMesh();
+        foreach (District district in districts) {
+            cityMesh.AddRoadMesh(district.CreateRoadMesh());
+            cityMesh.AddBuildingMesh(district.CreateBuildingMesh(false));
 
-    public Mesh CreateMesh(int inputDistrictNum, bool flattenBuildings = false) {
-        int numDistricts = Mathf.Max(1, Mathf.Min(inputDistrictNum, districts.Count - 1));
-        if (flattenBuildings) {
-            if (flatCityMeshs[numDistricts] == null) {
-                CustomMesh newMesh = new CustomMesh(new Vector3[0], new int[0]);
-                foreach (District district in districts.GetRange(0, numDistricts)) {
-                    newMesh.ConcatMesh(district.CreateMesh(flattenBuildings));
+            flatCityMesh.AddRoadMesh(district.CreateRoadMesh());
+            flatCityMesh.AddBuildingMesh(district.CreateBuildingMesh(true));
+        }
+    }
+
+    public Mesh GetCityMesh(int inputDistrictNum, bool flattenBuildings = false, bool showStressMap = false) {
+        int numDistricts = Mathf.Max(1, Mathf.Min(inputDistrictNum, districts.Count));
+
+        return flattenBuildings ? flatCityMesh.GetMesh(numDistricts, showStressMap) : cityMesh.GetMesh(numDistricts, showStressMap);
+    }
+
+    private List<District> CreateConnectedDistricts() {
+        List<District> outputDistricts = CreateDistricts();
+        while (!DistrictsConnected(outputDistricts)) {
+            outputDistricts = CreateDistricts();
+        }
+        return outputDistricts;
+    }
+
+    private bool DistrictsConnected(List<District> inputDistricts) {
+        RoadGraph graph = GetGraph(inputDistricts);
+        HashSet<Vector2> visitedNodes = new HashSet<Vector2>();
+        Vector2 startNode = graph.GetLeftMostNode();
+        visitedNodes.Add(startNode);
+
+        Queue<Vector2> nodeQueue = new Queue<Vector2>();
+        nodeQueue.Enqueue(startNode);
+
+        while (nodeQueue.Count > 0) {
+            Vector2 currentNode = nodeQueue.Dequeue();
+            visitedNodes.Add(currentNode);
+            List<Road> attachedRoads = graph.GetRoadList(currentNode);
+            foreach (Road edge in attachedRoads) {
+                if (!visitedNodes.Contains(edge.destination)) {
+                    nodeQueue.Enqueue(edge.destination);
                 }
-                Mesh meshToSave = newMesh.GetMesh(constants);
-                meshToSave.RecalculateNormals();
-                flatCityMeshs[numDistricts] = meshToSave;
             }
-            return flatCityMeshs[numDistricts];
-        } else {
-            if (cityMeshs[numDistricts] == null) {
-                CustomMesh newMesh = new CustomMesh(new Vector3[0], new int[0]);
-                foreach (District district in districts.GetRange(0, numDistricts)) {
-                    newMesh.ConcatMesh(district.CreateMesh(flattenBuildings));
-                }
-                Mesh meshToSave = newMesh.GetMesh(constants);
-                meshToSave.RecalculateNormals();
-                cityMeshs[numDistricts] = meshToSave;
-            }
-            return cityMeshs[numDistricts];
         }
 
-        // // CustomMesh finalMesh = new CustomMesh(new Vector3[0], new int[0]);
-
-        // foreach (District district in districts) {
-        //     finalMesh.ConcatMesh(district.CreateMesh(flattenBuildings));
-        // }
-        // Mesh outputMesh = finalMesh.GetMesh(constants);
-        // outputMesh.RecalculateNormals();
-        // return outputMesh;
+        HashSet<Vector2> totalNodes = new HashSet<Vector2>(graph.graph.Keys);
+        return totalNodes.SetEquals(visitedNodes);
     }
 
     private List<District> CreateDistricts() {
@@ -157,12 +206,24 @@ public class City {
         Gizmos.DrawLine(new Vector2(0, constants.GetMapHeight()), new Vector2(constants.GetMapWidth(), constants.GetMapHeight()));
     }
 
+    RoadGraph GetGraph(List<District> inputDistricts) {
+        RoadGraph output = new RoadGraph();
+        foreach (District district in inputDistricts) {
+            output.AddGraph(district.GetGraph());
+        }
+        return output;
+    }
+
     RoadGraph GetGraph() {
         RoadGraph output = new RoadGraph();
         foreach (District district in districts) {
             output.AddGraph(district.GetGraph());
         }
         return output;
+    }
+
+    public int GetNumDistricts() {
+        return districts.Count;
     }
 
 }

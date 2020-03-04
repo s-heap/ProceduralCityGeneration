@@ -5,9 +5,11 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
+[System.Serializable]
+
 public class District : IComparable<District> {
     List<Vector2> boundaryNodes;
-    Vector2 centre;
+    public Vector2 centre;
 
     List<Road> boundaryEdges;
 
@@ -17,12 +19,14 @@ public class District : IComparable<District> {
 
     private CityConstants constants;
 
-    float segmentSize = 10;
+    float segmentSize = 30;
     int degree = 3;
-    float snapSize = 5;
+    float snapSize = 15;
     float connectivity;
-    float proportionalRandomness = 0.2f;
+    float proportionalRandomness = 0.1f;
     int startingRoadAmount = 3;
+
+    public float population;
 
     public District(List<Vector2> points, Vector2 centre, CityConstants constants) {
         this.constants = constants;
@@ -272,36 +276,31 @@ public class District : IComparable<District> {
         }
     }
 
-    private List<Road> GetAllEdges() {
-        List<Road> list = new List<Road>();
-        list.AddRange(boundaryEdges);
-        list.AddRange(secondaryEdges);
-        return list;
+    // private List<Road> GetAllEdges() {
+    //     // List<Road> list = new List<Road>();
+    //     // list.AddRange(boundaryEdges);
+    //     // list.AddRange(secondaryEdges);
+    //     // return list;
+    //     HashSet<Road> roadSet = GetGraph().storedEdges;
+    //     foreach (Road edge in boundaryEdges) {
+    //         roadSet.Remove(edge);
+    //     }
+    //     return roadSet.ToList();
+    // }
+
+    // public CustomMesh CreateMesh(bool flattenBuildings = false) {
+    //     CustomMesh roads = CreateRoadMesh();
+    //     CustomMesh buildings = CreateBuildingMesh(flattenBuildings);
+    //     roads.ConcatMesh(buildings);
+    //     return roads;
+    // }
+
+    public CustomSingleMesh CreateRoadMesh() {
+        return GetGraph().CreateRoadMesh(constants, boundaryEdges);
     }
 
-    public CustomMesh CreateMesh(bool flattenBuildings = false) {
-        CustomMesh roads = CreateRoadMesh();
-        CustomMesh buildings = CreateBuildingMesh(flattenBuildings);
-        roads.ConcatMesh(buildings);
-        return roads;
-    }
-
-    public CustomMesh CreateRoadMesh() {
-        Road[] allEdges = GetAllEdges().ToArray();
-        Vector3[] verts = new Vector3[allEdges.Length * 4];
-        int[] tris = new int[2 * allEdges.Length * 3];
-        for (int i = 0; i < allEdges.Length; i++) {
-            Vector3[] meshCoords = allEdges[i].GetMeshCoords(1);
-            System.Array.Copy(meshCoords, 0, verts, i * 4, 4);
-            int[] currentTris = Road.GetTris(i * 4);
-            System.Array.Copy(currentTris, 0, tris, i * 6, 6);
-        }
-        CustomMesh mesh = new CustomMesh(verts, tris);
-        return mesh;
-    }
-
-    public CustomMesh CreateBuildingMesh(bool flattenBuildings = false) {
-        CustomMesh outputMesh = new CustomMesh(new Vector3[0], new int[0]);
+    public CustomSingleMesh CreateBuildingMesh(bool flattenBuildings = false) {
+        CustomSingleMesh outputMesh = new CustomSingleMesh();
         if (buildings != null) {
             foreach (Building building in buildings) {
                 outputMesh.ConcatMesh(building.CreateMesh(flattenBuildings));
@@ -364,8 +363,9 @@ public class District : IComparable<District> {
 
         while (nextEdges.Count > 0) {
 
-            if (outerCounter++ > 2000) {
-                Debug.Log("INFINITE LOOP MINIMAL CYCLE: OUTER FAILURE");
+            if (outerCounter++ > 100000) {
+                Debug.Log("INFINITE(100000 iterations) LOOP MINIMAL CYCLE: OUTER FAILURE");
+                buildings = output;
                 return null;
             }
 
@@ -398,6 +398,7 @@ public class District : IComparable<District> {
                 }
                 if (innerCounter++ > 2000) {
                     Debug.Log("INFINITE LOOP MINIMAL CYCLE: INNER FAILURE");
+                    buildings = output;
                     return null;
                 }
                 currentEdge = currentEdge.GetMostClockWise(sproutingEdges);
@@ -406,7 +407,7 @@ public class District : IComparable<District> {
             while (currentEdge.source != buildingStartNode);
 
             // Debug.Log("    Start Returned To, Logging Building With : " + currentBuildingList.Count + " Edges");
-            output.Add(new Building(currentBuildingList, constants));
+            output.Add(new Building(currentBuildingList, constants, constants.roadWidth));
             // Debug.Log("Building Edge Num: " + currentBuildingList.Count + "Queue Size " + nextEdges.Count);
 
         }
@@ -449,6 +450,14 @@ public class District : IComparable<District> {
         float thisLength = constants.GetDistanceToCentre(centre);
         float otherLength = constants.GetDistanceToCentre(other.centre);
         return thisLength.CompareTo(otherLength);
+    }
+
+    public float GetPopValue() {
+        return constants.GetPopNoiseValue(centre);
+    }
+
+    public float GetBusValue() {
+        return constants.GetBusNoiseValue(centre);
     }
 
 }

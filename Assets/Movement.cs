@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class Movement : MonoBehaviour {
     [SerializeField]
-    private float speed = 50;
+    // private float speed = 50;
     private Camera cam;
 
     // Start is called before the first frame update

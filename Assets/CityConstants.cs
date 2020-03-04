@@ -4,10 +4,13 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
+[System.Serializable]
 public class CityConstants {
     private int m_pointCount;
-    private float m_mapWidth;
-    private float m_mapHeight;
+    public float m_mapWidth;
+    public float m_mapHeight;
+
+    public float roadWidth = 5.5f;
 
     private Vector2 populationPerlinShift;
     private Vector2 businessPerlinShift;
@@ -52,4 +55,7 @@ public class CityConstants {
         return Mathf.PerlinNoise(input.x, input.y);
     }
 
+    public float GetMaxDimension() {
+        return Mathf.Max(m_mapWidth, m_mapHeight);
+    }
 }

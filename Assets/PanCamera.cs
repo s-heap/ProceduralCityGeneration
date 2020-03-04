@@ -5,7 +5,7 @@ public class PanCamera : MonoBehaviour {
     public float panSpeed = 3.5f;
     private float X;
     private float Y;
-    float moveSpeed = 100.0f;
+    float moveSpeed = 200.0f;
 
     void Update() {
         if (Input.GetMouseButton(0)) {

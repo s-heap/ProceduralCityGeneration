@@ -4,9 +4,11 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+[System.Serializable]
 public class Road : IEquatable<Road> {
     public Vector2 source;
     public Vector2 destination;
+    public float stress = 0;
 
     public Road(Vector2 source, Vector2 destination) {
         this.source = source;
@@ -153,11 +155,19 @@ public class Road : IEquatable<Road> {
     public Vector3[] GetMeshCoords(float roadWidth) {
         Vector2 perp = GetPerpendicular().normalized * (roadWidth / 2);
         Vector3[] output = new Vector3[4];
-        output[0] = MakeVec3(source + perp);
+        // output[0] = MakeVec3(source + perp);
+        // output[1] = MakeVec3(source - perp);
+        // output[2] = MakeVec3(destination + perp);
+        // output[3] = MakeVec3(destination - perp);
+        output[0] = MakeVec3(source);
         output[1] = MakeVec3(source - perp);
-        output[2] = MakeVec3(destination + perp);
+        output[2] = MakeVec3(destination);
         output[3] = MakeVec3(destination - perp);
         return output;
+    }
+
+    public Color[] GetColorCoords() {
+        return Enumerable.Repeat(new Color(0.1f + 2 * stress, 0, 0), 4).ToArray();
     }
 
     public Mesh CreateMesh() {
